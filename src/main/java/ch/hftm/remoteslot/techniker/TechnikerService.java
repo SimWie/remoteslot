@@ -2,6 +2,8 @@ package ch.hftm.remoteslot.techniker;
 
 import ch.hftm.remoteslot.common.KonfliktException;
 import ch.hftm.remoteslot.common.NichtGefundenException;
+import org.springframework.lang.NonNull;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,13 +28,13 @@ public class TechnikerService {
         return repository.saveAndFlush(new Techniker(kuerzel, vorname, nachname));
     }
 
-    public Techniker laden(Long id) {
+    public Techniker laden(@NonNull Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new NichtGefundenException("Techniker " + id + " nicht gefunden."));
     }
 
     @Transactional
-    public Techniker aendern(Long id, String vorname, String nachname) {
+    public Techniker aendern(@NonNull Long id, String vorname, String nachname) {
         Techniker techniker = laden(id);
         techniker.aendern(vorname, nachname);
         return techniker;

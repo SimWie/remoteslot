@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.Objects;
 
 /** A2: Techniker verwalten. Gueltige und ungueltige Eingaben gegen echtes PostgreSQL. */
+@SuppressWarnings("null")
 class TechnikerApiTest extends AbstractIntegrationTest {
 
     @BeforeEach
