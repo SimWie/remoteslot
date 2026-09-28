@@ -66,12 +66,41 @@ class SchemaMigrationTest extends AbstractIntegrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    @DisplayName("V2: Eine inaktive und eine aktive Anlage dürfen dieselbe Anlagennummer haben")
+    void inaktiveUndAktiveAnlageMitGleicherNummerSindErlaubt() {
+        long kundeId = kundeAnlegen();
+        anlageAnlegen(kundeId, "ANL-0815", false);
+
+        anlageAnlegen(kundeId, "ANL-0815", true);
+
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM anlage WHERE anlagennummer = 'ANL-0815'", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("V2: Zwei aktive Anlagen dürfen nicht dieselbe Anlagennummer haben")
+    void zweiAktiveAnlagenMitGleicherNummerWerdenAbgelehnt() {
+        long kundeId = kundeAnlegen();
+        anlageAnlegen(kundeId, "ANL-0815", true);
+
+        assertThatThrownBy(() -> anlageAnlegen(kundeId, "ANL-0815", true))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private long anlageAnlegen() {
-        long kundeId = Objects.requireNonNull(jdbc.queryForObject(
+        return anlageAnlegen(kundeAnlegen(), "ANL-0001", true);
+    }
+
+    private long kundeAnlegen() {
+        return Objects.requireNonNull(jdbc.queryForObject(
                 "INSERT INTO kunde (name, ort) VALUES ('Muster AG', 'Bern') RETURNING id", Long.class));
+    }
+
+    private long anlageAnlegen(long kundeId, String anlagennummer, boolean aktiv) {
         return Objects.requireNonNull(jdbc.queryForObject("""
-                INSERT INTO anlage (kunde_id, anlagennummer, bezeichnung, steuerungstyp)
-                VALUES (?, 'ANL-0001', 'Palettierer Halle 2', 'S7-1500') RETURNING id
-                """, Long.class, kundeId));
+                INSERT INTO anlage (kunde_id, anlagennummer, bezeichnung, steuerungstyp, aktiv)
+                VALUES (?, ?, 'Palettierer Halle 2', 'S7-1500', ?) RETURNING id
+                """, Long.class, kundeId, anlagennummer, aktiv));
     }
 }
