@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: remoteslot
+  datasource:
+    # Defaults passen zur compose.yaml; fuer andere Umgebungen per Umgebungsvariable setzen.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/remoteslot}
+    username: ${DB_USER:remoteslot}
+    password: ${DB_PASSWORD:remoteslot}
+  jpa:
+    # Das Schema wird ausschliesslich durch Flyway aufgebaut; Hibernate prueft nur.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    # Fuer T10 laesst sich der Ausgangszustand ohne Index reproduzieren, z. B.:
+    #   ./mvnw spring-boot:run -Dspring-boot.run.arguments=--spring.flyway.target=1
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+---
+# SQL-Log fuer T11 (N+1-Untersuchung): mit --spring.profiles.active=sqllog starten
+spring:
+  config:
+    activate:
+      on-profile: sqllog
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+        generate_statistics: true
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
+    org.hibernate.stat: debug

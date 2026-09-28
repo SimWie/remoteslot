@@ -1,0 +1,29 @@
+### Techniker erfassen
+POST http://localhost:8080/api/techniker
+Content-Type: application/json
+
+{"kuerzel": "AMU", "vorname": "Anna", "nachname": "Muster"}
+
+### Gleiches Kuerzel nochmals -> 409 Conflict
+POST http://localhost:8080/api/techniker
+Content-Type: application/json
+
+{"kuerzel": "AMU", "vorname": "Andreas", "nachname": "Muster"}
+
+### Ungueltiges Kuerzel -> 400 Bad Request
+POST http://localhost:8080/api/techniker
+Content-Type: application/json
+
+{"kuerzel": "am1", "vorname": "Anna", "nachname": "Muster"}
+
+### Techniker lesen
+GET http://localhost:8080/api/techniker/1
+
+### Techniker aendern
+PUT http://localhost:8080/api/techniker/1
+Content-Type: application/json
+
+{"vorname": "Anna", "nachname": "Muster-Beispiel"}
+
+### Techniker deaktivieren
+POST http://localhost:8080/api/techniker/1/deaktivieren

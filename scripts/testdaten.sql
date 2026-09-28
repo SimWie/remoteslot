@@ -1,0 +1,4 @@
+-- T9: Reproduzierbarer Testdatengenerator (folgt)
+-- Idee: setseed(0.42) am Anfang, danach generate_series + random() fuer
+-- Kunden, Anlagen, Techniker, >= 100'000 Reservationen und Statusereignisse.
+-- Keine echten Personendaten, nur synthetische Namen.
