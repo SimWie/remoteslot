@@ -69,7 +69,7 @@ class SchemaMigrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("V2: Eine inaktive und eine aktive Anlage dürfen dieselbe Anlagennummer haben")
     void inaktiveUndAktiveAnlageMitGleicherNummerSindErlaubt() {
-        long kundeId = kundeAnlegen();
+        long kundeId = kundeAnlegen("Lonza AG", "Visp");
         anlageAnlegen(kundeId, "ANL-0815", false);
 
         anlageAnlegen(kundeId, "ANL-0815", true);
@@ -81,20 +81,49 @@ class SchemaMigrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("V2: Zwei aktive Anlagen dürfen nicht dieselbe Anlagennummer haben")
     void zweiAktiveAnlagenMitGleicherNummerWerdenAbgelehnt() {
-        long kundeId = kundeAnlegen();
+        long kundeId = kundeAnlegen("Lonza AG", "Visp");
         anlageAnlegen(kundeId, "ANL-0815", true);
 
         assertThatThrownBy(() -> anlageAnlegen(kundeId, "ANL-0815", true))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    private long anlageAnlegen() {
-        return anlageAnlegen(kundeAnlegen(), "ANL-0001", true);
+    @Test
+    @DisplayName("V3: Zwei Kunden mit gleichem Namen und Ort werden abgelehnt")
+    void zweiKundenMitGleichemNamenUndOrtWerdenAbgelehnt() {
+        kundeAnlegen("Lonza AG", "Visp");
+
+        assertThatThrownBy(() -> kundeAnlegen("Lonza AG", "Visp"))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    private long kundeAnlegen() {
+    @Test
+    @DisplayName("V3: Gross-/Kleinschreibung und Leerzeichen am Rand gelten nicht als anderer Kunde")
+    void kundeMitAndererSchreibweiseWirdAbgelehnt() {
+        kundeAnlegen("Lonza AG", "Visp");
+
+        assertThatThrownBy(() -> kundeAnlegen(" lonza ag ", "VISP"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("V3: Derselbe Name an einem anderen Ort ist ein anderer Kunde")
+    void gleicherNameAnAnderemOrtIstErlaubt() {
+        kundeAnlegen("Lonza AG", "Visp");
+
+        kundeAnlegen("Lonza AG", "Basel");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM kunde WHERE name = 'Lonza AG'", Integer.class)).isEqualTo(2);
+    }
+
+    private long anlageAnlegen() {
+        return anlageAnlegen(kundeAnlegen("Lonza AG", "Visp"), "ANL-0001", true);
+    }
+
+    private long kundeAnlegen(String name, String ort) {
         return Objects.requireNonNull(jdbc.queryForObject(
-                "INSERT INTO kunde (name, ort) VALUES ('Muster AG', 'Bern') RETURNING id", Long.class));
+                "INSERT INTO kunde (name, ort) VALUES (?, ?) RETURNING id", Long.class, name, ort));
     }
 
     private long anlageAnlegen(long kundeId, String anlagennummer, boolean aktiv) {
