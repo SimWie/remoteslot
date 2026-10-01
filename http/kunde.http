@@ -1,0 +1,67 @@
+# A1: Kunden verwalten
+# Voraussetzung: frische Datenbank (docker compose down -v && docker compose up -d), Anwendung gestartet.
+# Beim zweiten Durchlauf liefert "Kunde erfassen" 409, weil der Kunde schon existiert.
+
+@baseUrl = http://localhost:8080/api/kunden
+
+### Kunde erfassen -> 201 Created
+# @name lonza
+POST {{baseUrl}}
+Content-Type: application/json
+
+{
+  "name": "Lonza AG",
+  "ort":  "Visp"
+}
+
+### Derselbe Kunde in anderer Schreibweise -> 409 Conflict
+POST {{baseUrl}}
+Content-Type: application/json
+
+{
+  "name": " lonza ag ",
+  "ort":  "VISP"
+}
+
+### Gleicher Name an anderem Ort -> 201 Created (anderer Kunde)
+# @name lonzaBasel
+POST {{baseUrl}}
+Content-Type: application/json
+
+{
+  "name": "Lonza AG",
+  "ort":  "Basel"
+}
+
+### Leerer Name -> 400 Bad Request
+POST {{baseUrl}}
+Content-Type: application/json
+
+{
+  "name": "   ",
+  "ort":  "Visp"
+}
+
+### Kunde lesen
+GET {{baseUrl}}/{{lonza.response.body.$.id}}
+
+### Kunde aendern -> 200 OK
+PUT {{baseUrl}}/{{lonza.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "name": "Lonza Group AG",
+  "ort":  "Visp"
+}
+
+### Aendern auf einen anderen bestehenden Kunden -> 409 Conflict
+PUT {{baseUrl}}/{{lonzaBasel.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "name": "Lonza Group AG",
+  "ort":  "Visp"
+}
+
+### Unbekannter Kunde -> 404 Not Found
+GET {{baseUrl}}/999

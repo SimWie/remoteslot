@@ -1,0 +1,102 @@
+# A1: Anlagen verwalten und ausser Betrieb nehmen (inkl. Ablauf Kundenwechsel)
+# Voraussetzung: frische Datenbank (docker compose down -v && docker compose up -d), Anwendung gestartet.
+# Die Aufrufe von oben nach unten ausfuehren; spaetere Aufrufe verwenden IDs aus frueheren Antworten.
+
+@baseUrl = http://localhost:8080/api
+
+### 1. Kunde fuer die Anlage erfassen -> 201
+# @name altkunde
+POST {{baseUrl}}/kunden
+Content-Type: application/json
+
+{
+  "name": "Muster Logistik AG",
+  "ort":  "Bern"
+}
+
+### 2. Anlage erfassen -> 201, aktiv = true
+# @name anlage
+POST {{baseUrl}}/anlagen
+Content-Type: application/json
+
+{
+  "kundeId":       {{altkunde.response.body.$.id}},
+  "anlagennummer": "ANL-0815",
+  "bezeichnung":   "Palettierer Halle 2",
+  "steuerungstyp": "S7-1500"
+}
+
+### 3. Dieselbe Anlagennummer nochmals -> 409 Conflict (Nummer gehoert einer aktiven Anlage)
+POST {{baseUrl}}/anlagen
+Content-Type: application/json
+
+{
+  "kundeId":       {{altkunde.response.body.$.id}},
+  "anlagennummer": "ANL-0815",
+  "bezeichnung":   "Palettierer Halle 2",
+  "steuerungstyp": "S7-1500"
+}
+
+### 4. Ungueltiges Format der Anlagennummer -> 400 Bad Request
+POST {{baseUrl}}/anlagen
+Content-Type: application/json
+
+{
+  "kundeId":       {{altkunde.response.body.$.id}},
+  "anlagennummer": "anl 1",
+  "bezeichnung":   "Palettierer Halle 2",
+  "steuerungstyp": "S7-1500"
+}
+
+### 5. Unbekannter Kunde -> 404 Not Found
+POST {{baseUrl}}/anlagen
+Content-Type: application/json
+
+{
+  "kundeId":       999,
+  "anlagennummer": "ANL-0999",
+  "bezeichnung":   "Palettierer Halle 2",
+  "steuerungstyp": "S7-1500"
+}
+
+### 6. Anlage lesen
+GET {{baseUrl}}/anlagen/{{anlage.response.body.$.id}}
+
+### 7. Bezeichnung und Steuerungstyp aendern -> 200
+PUT {{baseUrl}}/anlagen/{{anlage.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "bezeichnung":   "Palettierer Halle 3",
+  "steuerungstyp": "S7-1200"
+}
+
+### 8. Kundenwechsel, Teil 1: Anlage ausser Betrieb nehmen -> 200, aktiv = false
+POST {{baseUrl}}/anlagen/{{anlage.response.body.$.id}}/ausser-betrieb
+
+### 9. Nochmals ausser Betrieb nehmen -> 409 Conflict
+POST {{baseUrl}}/anlagen/{{anlage.response.body.$.id}}/ausser-betrieb
+
+### 10. Kundenwechsel, Teil 2: neuer Kunde erfassen -> 201
+# @name neukunde
+POST {{baseUrl}}/kunden
+Content-Type: application/json
+
+{
+  "name": "Beispiel Verpackung GmbH",
+  "ort":  "Thun"
+}
+
+### 11. Kundenwechsel, Teil 3: dieselbe Anlagennummer beim neuen Kunden erfassen -> 201
+POST {{baseUrl}}/anlagen
+Content-Type: application/json
+
+{
+  "kundeId":       {{neukunde.response.body.$.id}},
+  "anlagennummer": "ANL-0815",
+  "bezeichnung":   "Palettierer Halle 2",
+  "steuerungstyp": "S7-1500"
+}
+
+### 12. Unbekannte Anlage -> 404 Not Found
+GET {{baseUrl}}/anlagen/999

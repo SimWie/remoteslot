@@ -46,7 +46,7 @@ public class Anlage {
 
     public void ausserBetriebNehmen() {
         if (!aktiv) {
-            throw new KonfliktException("Anlage " + this.anlagennummer + " ist bereits ausser Betrieb");
+            throw new KonfliktException("Anlage " + this.anlagennummer + " ist bereits ausser Betrieb.");
         }
         this.aktiv = false;
     }
