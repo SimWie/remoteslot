@@ -7,6 +7,10 @@ import ch.hftm.remoteslot.common.NichtGefundenException;
 import ch.hftm.remoteslot.common.UngueltigeAnfrageException;
 import ch.hftm.remoteslot.techniker.Techniker;
 import ch.hftm.remoteslot.techniker.TechnikerRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.lang.NonNull;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -141,6 +145,36 @@ public class ReservationService {
         if (!reservation.getVersion().equals(version)) {
             throw new ObjectOptimisticLockingFailureException(Reservation.class, reservation.getId());
         }
+    }
+
+    static final int MAX_SEITENGROESSE = 100;
+
+    /** Stabile Reihenfolge ueber alle Seiten: nach Beginn, bei gleichem Beginn nach ID (eindeutig). */
+    static final Sort SORTIERUNG = Sort.by("beginn").ascending().and(Sort.by("id").ascending());
+
+    /**
+     * A6/T7: Suche mit optionalen Filtern, sortiert und seitenweise mit Gesamtanzahl.
+     * Spring Data fuehrt dafuer zwei Abfragen aus: die Seite (LIMIT/OFFSET) und ein COUNT fuer die Gesamtanzahl.
+     */
+    public Page<Reservation> suchen(Long kundeId, Long anlageId, Long technikerId, Status status,
+                                    Instant von, Instant bis, int seite, int groesse) {
+        if (seite < 0) {
+            throw new UngueltigeAnfrageException("Die Seite darf nicht negativ sein.");
+        }
+        if (groesse < 1 || groesse > MAX_SEITENGROESSE) {
+            throw new UngueltigeAnfrageException("Die Seitengroesse muss zwischen 1 und " + MAX_SEITENGROESSE + " liegen.");
+        }
+        if (von != null && bis != null && !bis.isAfter(von)) {
+            throw new UngueltigeAnfrageException("'bis' muss nach 'von' liegen.");
+        }
+        Specification<Reservation> filter = Specification.allOf(
+                ReservationSpecifications.kunde(kundeId),
+                ReservationSpecifications.anlage(anlageId),
+                ReservationSpecifications.techniker(technikerId),
+                ReservationSpecifications.status(status),
+                ReservationSpecifications.abZeitpunkt(von),
+                ReservationSpecifications.bisZeitpunkt(bis));
+        return reservationen.findAll(filter, PageRequest.of(seite, groesse, SORTIERUNG));
     }
 
     public Reservation laden(@NonNull Long id) {

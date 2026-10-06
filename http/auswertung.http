@@ -1,0 +1,15 @@
+# A7: Fernwartungsaufwand auswerten (nur ABGESCHLOSSEN, Monat des Beginns in Schweizer Zeit)
+# von = inklusive, bis = exklusive; Kalendertage in Schweizer Zeit.
+# Tipp: zuerst reservation.http ausfuehren (erzeugt einen abgeschlossenen Einsatz im Maerz 2027),
+# fuer aussagekraeftige Zahlen spaeter die Testdaten aus scripts/testdaten.sql laden (T9).
+
+@baseUrl = http://localhost:8080/api/auswertungen
+
+### Einsaetze und Stunden je Kunde und Monat
+GET {{baseUrl}}/aufwand-kunde?von=2027-01-01&bis=2028-01-01
+
+### Einsaetze und Stunden je Techniker, aufgeteilt nach Zweck
+GET {{baseUrl}}/aufwand-techniker?von=2027-01-01&bis=2028-01-01
+
+### Ungueltiger Zeitraum (bis vor von) -> 400
+GET {{baseUrl}}/aufwand-kunde?von=2027-12-01&bis=2027-01-01

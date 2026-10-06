@@ -1,11 +1,14 @@
 package ch.hftm.remoteslot.reservation;
 
 import jakarta.validation.constraints.NotNull;
+import org.springframework.data.domain.Page;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.function.Function;
 
 /** API-DTOs, bewusst getrennt von der Entity. */
 public final class ReservationDtos {
@@ -56,6 +59,18 @@ public final class ReservationDtos {
         static VerlaufseintragResponse von(Statusereignis e) {
             return new VerlaufseintragResponse(anzeige(e.getZeitpunkt()), e.getAlterStatus(), e.getNeuerStatus(),
                     e.getBemerkung());
+        }
+    }
+
+    /**
+     * Eine Seite des Suchergebnisses. Bewusst ein eigenes DTO statt Springs Page-Objekt,
+     * damit das JSON-Format stabil und unabhaengig von der Spring-Version bleibt.
+     */
+    public record Seite<T>(List<T> inhalt, int seite, int groesse, long gesamtanzahl, int seitenanzahl) {
+
+        static <E, T> Seite<T> von(Page<E> page, Function<E, T> mapper) {
+            return new Seite<>(page.getContent().stream().map(mapper).toList(), page.getNumber(), page.getSize(),
+                    page.getTotalElements(), page.getTotalPages());
         }
     }
 

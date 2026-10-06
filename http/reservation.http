@@ -1,0 +1,135 @@
+# A3-A6: Reservationen anlegen, Ueberschneidungen, Status, Verschieben, Suche
+# Voraussetzung: frische Datenbank (docker compose down -v && docker compose up -d), Anwendung gestartet.
+# Von oben nach unten ausfuehren. Die festen Daten (Maerz 2027) muessen in der Zukunft liegen;
+# nach diesem Datum die Jahreszahl anpassen.
+
+@baseUrl = http://localhost:8080/api
+
+### Vorbereitung: Kunde
+# @name kunde
+POST {{baseUrl}}/kunden
+Content-Type: application/json
+
+{ "name": "Muster Logistik AG", "ort": "Bern" }
+
+### Vorbereitung: Anlage
+# @name anlage
+POST {{baseUrl}}/anlagen
+Content-Type: application/json
+
+{
+  "kundeId":       {{kunde.response.body.$.id}},
+  "anlagennummer": "ANL-4711",
+  "bezeichnung":   "Hochregallager",
+  "steuerungstyp": "S7-1500"
+}
+
+### Vorbereitung: Techniker 1
+# @name anna
+POST {{baseUrl}}/techniker
+Content-Type: application/json
+
+{ "kuerzel": "ANM", "vorname": "Anna", "nachname": "Muster" }
+
+### Vorbereitung: Techniker 2
+# @name beat
+POST {{baseUrl}}/techniker
+Content-Type: application/json
+
+{ "kuerzel": "BBE", "vorname": "Beat", "nachname": "Beispiel" }
+
+### A3: Reservation anlegen -> 201, Status GEPLANT, Version 0, Zeiten in Schweizer Zeit
+# @name reservation
+POST {{baseUrl}}/reservationen
+Content-Type: application/json
+
+{
+  "anlageId":    {{anlage.response.body.$.id}},
+  "technikerId": {{anna.response.body.$.id}},
+  "beginn":      "2027-03-01T09:00:00+01:00",
+  "ende":        "2027-03-01T11:00:00+01:00",
+  "zweck":       "UPDATE",
+  "bemerkung":   "Firmware 2.4"
+}
+
+### A4: Andere Technikerin, gleiche Anlage, ueberlappend -> 409 (Anlage belegt)
+POST {{baseUrl}}/reservationen
+Content-Type: application/json
+
+{
+  "anlageId":    {{anlage.response.body.$.id}},
+  "technikerId": {{beat.response.body.$.id}},
+  "beginn":      "2027-03-01T10:00:00+01:00",
+  "ende":        "2027-03-01T12:00:00+01:00",
+  "zweck":       "STOERUNG"
+}
+
+### A4: Direkt anschliessend (Ende = Beginn) -> 201
+POST {{baseUrl}}/reservationen
+Content-Type: application/json
+
+{
+  "anlageId":    {{anlage.response.body.$.id}},
+  "technikerId": {{beat.response.body.$.id}},
+  "beginn":      "2027-03-01T11:00:00+01:00",
+  "ende":        "2027-03-01T12:00:00+01:00",
+  "zweck":       "STOERUNG"
+}
+
+### A3: Dauer unter 15 Minuten -> 400
+POST {{baseUrl}}/reservationen
+Content-Type: application/json
+
+{
+  "anlageId":    {{anlage.response.body.$.id}},
+  "technikerId": {{anna.response.body.$.id}},
+  "beginn":      "2027-03-02T09:00:00+01:00",
+  "ende":        "2027-03-02T09:10:00+01:00",
+  "zweck":       "WARTUNG"
+}
+
+### A5: Verschieben (Version 0) -> 200, Version 1, Verlaufseintrag GEPLANT -> GEPLANT
+PUT {{baseUrl}}/reservationen/{{reservation.response.body.$.id}}/zeitraum
+Content-Type: application/json
+
+{
+  "beginn":  "2027-03-01T08:00:00+01:00",
+  "ende":    "2027-03-01T10:00:00+01:00",
+  "version": 0
+}
+
+### A5/T5: Veralteter Stand (nochmals Version 0) -> 409 statt Ueberschreiben
+POST {{baseUrl}}/reservationen/{{reservation.response.body.$.id}}/status
+Content-Type: application/json
+
+{ "neuerStatus": "STORNIERT", "version": 0 }
+
+### A5: Unzulaessiger Uebergang GEPLANT -> ABGESCHLOSSEN -> 409
+POST {{baseUrl}}/reservationen/{{reservation.response.body.$.id}}/status
+Content-Type: application/json
+
+{ "neuerStatus": "ABGESCHLOSSEN", "version": 1 }
+
+### A5: GEPLANT -> AKTIV (Version 1) -> 200
+POST {{baseUrl}}/reservationen/{{reservation.response.body.$.id}}/status
+Content-Type: application/json
+
+{ "neuerStatus": "AKTIV", "version": 1, "bemerkung": "Verbindung aufgebaut" }
+
+### A5: AKTIV -> ABGESCHLOSSEN (Version 2) -> 200
+POST {{baseUrl}}/reservationen/{{reservation.response.body.$.id}}/status
+Content-Type: application/json
+
+{ "neuerStatus": "ABGESCHLOSSEN", "version": 2 }
+
+### Verlauf der Reservation (Erfassung, Verschiebung, AKTIV, ABGESCHLOSSEN)
+GET {{baseUrl}}/reservationen/{{reservation.response.body.$.id}}/verlauf
+
+### A6: Suche ohne Filter (sortiert nach Beginn, dann ID)
+GET {{baseUrl}}/reservationen
+
+### A6: Suche nach Kunde und Status, Seitengroesse 1
+GET {{baseUrl}}/reservationen?kundeId={{kunde.response.body.$.id}}&status=GEPLANT&seite=0&groesse=1
+
+### A6: Suche nach Zeitraum (Z = UTC; ein "+" im Offset muesste als %2B kodiert werden)
+GET {{baseUrl}}/reservationen?von=2027-03-01T09:30:00Z&bis=2027-03-01T12:00:00Z

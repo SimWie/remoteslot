@@ -1,6 +1,7 @@
 package ch.hftm.remoteslot.reservation;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -8,7 +9,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
-public interface ReservationRepository extends JpaRepository<Reservation, Long> {
+public interface ReservationRepository extends JpaRepository<Reservation, Long>, JpaSpecificationExecutor<Reservation> {
 
     /** Ueberschneidung halboffen wie im Constraint aus V4: [beginn, ende). Stornierte zaehlen nicht. */
     @Query("""
