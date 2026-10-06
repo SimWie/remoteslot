@@ -14,6 +14,14 @@ public interface AnlageRepository extends JpaRepository<Anlage, Long> {
     @Query("SELECT a FROM Anlage a WHERE a.id = :id")
     Optional<Anlage> findByIdGesperrt(@Param("id") Long id);
 
+    /**
+     * Gemeinsame Sperre (SELECT ... FOR SHARE) beim Reservieren: blockiert ein gleichzeitiges
+     * Ausser-Betrieb-Nehmen bzw. Deaktivieren, aber keine anderen Reservationen.
+     */
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("SELECT a FROM Anlage a WHERE a.id = :id")
+    Optional<Anlage> findByIdZumReservieren(@Param("id") Long id);
+
     boolean existsByAnlagennummerAndAktivTrue(String anlagennummer);
 
 }

@@ -117,6 +117,54 @@ class SchemaMigrationTest extends AbstractIntegrationTest {
                 "SELECT count(*) FROM kunde WHERE name = 'Lonza AG'", Integer.class)).isEqualTo(2);
     }
 
+    @Test
+    @DisplayName("V4: Zwei überlappende Reservationen auf derselben Anlage werden abgelehnt")
+    void ueberlappendeReservationenAufDerselbenAnlageWerdenAbgelehnt() {
+        long anlageId = anlageAnlegen();
+        reservationEinfuegen(anlageId, technikerAnlegen("AAA"), "09:00", "11:00", "GEPLANT");
+
+        assertThatThrownBy(() -> reservationEinfuegen(anlageId, technikerAnlegen("BBB"), "10:00", "12:00", "GEPLANT"))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ex_reservation_anlage_ueberschneidung");
+    }
+
+    @Test
+    @DisplayName("V4: Derselbe Techniker kann nicht gleichzeitig auf zwei Anlagen eingeplant werden")
+    void technikerKannNichtDoppeltEingeplantWerden() {
+        long kundeId = kundeAnlegen("Lonza AG", "Visp");
+        long technikerId = technikerAnlegen("AAA");
+        reservationEinfuegen(anlageAnlegen(kundeId, "ANL-0001", true), technikerId, "09:00", "11:00", "GEPLANT");
+
+        assertThatThrownBy(() -> reservationEinfuegen(anlageAnlegen(kundeId, "ANL-0002", true), technikerId,
+                "10:30", "11:30", "GEPLANT"))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ex_reservation_techniker_ueberschneidung");
+    }
+
+    @Test
+    @DisplayName("V4: Direkt aneinandergrenzende Fenster (Ende = Beginn) sind erlaubt")
+    void aneinandergrenzendeFensterSindErlaubt() {
+        long anlageId = anlageAnlegen();
+        long technikerId = technikerAnlegen("AAA");
+        reservationEinfuegen(anlageId, technikerId, "09:00", "10:00", "GEPLANT");
+
+        reservationEinfuegen(anlageId, technikerId, "10:00", "11:00", "GEPLANT");
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM reservation", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("V4: Eine stornierte Reservation blockiert den Zeitraum nicht")
+    void stornierteReservationBlockiertNicht() {
+        long anlageId = anlageAnlegen();
+        long technikerId = technikerAnlegen("AAA");
+        reservationEinfuegen(anlageId, technikerId, "09:00", "11:00", "STORNIERT");
+
+        reservationEinfuegen(anlageId, technikerId, "09:00", "11:00", "GEPLANT");
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM reservation", Integer.class)).isEqualTo(2);
+    }
+
     private long anlageAnlegen() {
         return anlageAnlegen(kundeAnlegen("Lonza AG", "Visp"), "ANL-0001", true);
     }
@@ -131,5 +179,19 @@ class SchemaMigrationTest extends AbstractIntegrationTest {
                 INSERT INTO anlage (kunde_id, anlagennummer, bezeichnung, steuerungstyp, aktiv)
                 VALUES (?, ?, 'Palettierer Halle 2', 'S7-1500', ?) RETURNING id
                 """, Long.class, kundeId, anlagennummer, aktiv));
+    }
+
+    private long technikerAnlegen(String kuerzel) {
+        return Objects.requireNonNull(jdbc.queryForObject(
+                "INSERT INTO techniker (kuerzel, vorname, nachname) VALUES (?, 'Test', 'Person') RETURNING id",
+                Long.class, kuerzel));
+    }
+
+    /** Reservation direkt per SQL am 01.10.2026 (Schweizer Zeit), ohne API und ohne Anwendungsregeln. */
+    private void reservationEinfuegen(long anlageId, long technikerId, String von, String bis, String status) {
+        jdbc.update("""
+                INSERT INTO reservation (anlage_id, techniker_id, beginn, ende, zweck, status)
+                VALUES (?, ?, CAST(? AS timestamptz), CAST(? AS timestamptz), 'UPDATE', ?)
+                """, anlageId, technikerId, "2026-10-01 " + von + "+02", "2026-10-01 " + bis + "+02", status);
     }
 }
