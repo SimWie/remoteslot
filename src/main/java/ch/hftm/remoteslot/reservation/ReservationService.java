@@ -8,6 +8,7 @@ import ch.hftm.remoteslot.common.UngueltigeAnfrageException;
 import ch.hftm.remoteslot.techniker.Techniker;
 import ch.hftm.remoteslot.techniker.TechnikerRepository;
 import org.springframework.lang.NonNull;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -97,6 +98,49 @@ public class ReservationService {
             storniert++;
         }
         return storniert;
+    }
+
+    /**
+     * A5: Status aendern (inkl. Stornieren). Zulaessige Uebergaenge prueft die Entity.
+     * Der Client schickt die Version mit, die er gesehen hat; ein veralteter Stand wird abgelehnt (409).
+     */
+    @Transactional
+    public Reservation statusAendern(@NonNull Long id, @NonNull Long version, Status neuerStatus, String bemerkung) {
+        Reservation reservation = laden(id);
+        pruefeVersion(reservation, version);
+        statusereignisse.save(reservation.statusWechseln(neuerStatus, bemerkung));
+        reservationen.flush(); // erhoeht die Version, damit die Antwort den neuen Stand zeigt
+        return reservation;
+    }
+
+    /** A5: Verschieben, nur im Status GEPLANT. Es gelten dieselben Regeln wie beim Anlegen (Dauer, Beginn, A4). */
+    @Transactional
+    public Reservation verschieben(@NonNull Long id, @NonNull Long version, Instant beginn, Instant ende) {
+        pruefeZeitraum(beginn, ende);
+        Reservation reservation = laden(id);
+        pruefeVersion(reservation, version);
+        reservation.pruefeVerschiebbar();
+
+        // Vorabpruefung ohne die Reservation selbst; Garantie wie beim Anlegen durch die Constraints aus V4
+        if (reservationen.anlageBelegtAusser(reservation.getAnlage().getId(), id, beginn, ende)) {
+            throw new KonfliktException("Anlage " + reservation.getAnlage().getAnlagennummer()
+                    + " ist im gewuenschten Zeitraum bereits reserviert.");
+        }
+        if (reservationen.technikerBelegtAusser(reservation.getTechniker().getId(), id, beginn, ende)) {
+            throw new KonfliktException("Techniker " + reservation.getTechniker().getKuerzel()
+                    + " ist im gewuenschten Zeitraum bereits eingeplant.");
+        }
+
+        statusereignisse.save(reservation.verschieben(beginn, ende));
+        reservationen.flush();
+        return reservation;
+    }
+
+    /** Optimistisches Sperren ueber die REST-Grenze: die @Version-Spalte schuetzt zusaetzlich gleichzeitige Commits. */
+    private void pruefeVersion(Reservation reservation, Long version) {
+        if (!reservation.getVersion().equals(version)) {
+            throw new ObjectOptimisticLockingFailureException(Reservation.class, reservation.getId());
+        }
     }
 
     public Reservation laden(@NonNull Long id) {

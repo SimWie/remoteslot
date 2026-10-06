@@ -165,6 +165,37 @@ class SchemaMigrationTest extends AbstractIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reservation", Integer.class)).isEqualTo(2);
     }
 
+    @Test
+    @DisplayName("V5: Ein Verlaufseintrag GEPLANT -> GEPLANT (Verschieben) braucht eine Bemerkung")
+    void verlaufseintragOhneStatuswechselBrauchtBemerkung() {
+        reservationEinfuegen(anlageAnlegen(), technikerAnlegen("AAA"), "09:00", "10:00", "GEPLANT");
+        long reservationId = Objects.requireNonNull(jdbc.queryForObject("SELECT id FROM reservation", Long.class));
+
+        jdbc.update("""
+                INSERT INTO statusereignis (reservation_id, alter_status, neuer_status, bemerkung)
+                VALUES (?, 'GEPLANT', 'GEPLANT', 'Verschoben von ... auf ...')
+                """, reservationId);
+
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO statusereignis (reservation_id, alter_status, neuer_status)
+                VALUES (?, 'GEPLANT', 'GEPLANT')
+                """, reservationId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("V5: Andere Einträge ohne Statuswechsel bleiben verboten, auch mit Bemerkung")
+    void andereEintraegeOhneStatuswechselBleibenVerboten() {
+        reservationEinfuegen(anlageAnlegen(), technikerAnlegen("AAA"), "09:00", "10:00", "AKTIV");
+        long reservationId = Objects.requireNonNull(jdbc.queryForObject("SELECT id FROM reservation", Long.class));
+
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO statusereignis (reservation_id, alter_status, neuer_status, bemerkung)
+                VALUES (?, 'AKTIV', 'AKTIV', 'irgendwas')
+                """, reservationId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private long anlageAnlegen() {
         return anlageAnlegen(kundeAnlegen("Lonza AG", "Visp"), "ANL-0001", true);
     }

@@ -6,10 +6,16 @@ import ch.hftm.remoteslot.techniker.Techniker;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 @Entity
 @Table(name = "reservation")
 public class Reservation {
+
+    /** Fuer lesbare Bemerkungen im Verlauf (Schweizer Zeit). */
+    private static final DateTimeFormatter ANZEIGE =
+            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.of("Europe/Zurich"));
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -79,6 +85,29 @@ public class Reservation {
         Status alt = status;
         this.status = neu;
         return new Statusereignis(this, alt, neu, bemerkung);
+    }
+
+    /** Steckbrief A5: Verschieben ist nur im Status GEPLANT moeglich. */
+    public void pruefeVerschiebbar() {
+        if (status != Status.GEPLANT) {
+            throw new KonfliktException("Nur geplante Reservationen koennen verschoben werden (Status: " + status + ").");
+        }
+    }
+
+    /**
+     * Verschiebt den Zeitraum und liefert einen Verlaufseintrag GEPLANT -> GEPLANT mit altem und neuem Zeitraum
+     * (erlaubt seit V5). Pruefung von Dauer und Ueberschneidung macht der Service.
+     */
+    public Statusereignis verschieben(Instant neuerBeginn, Instant neuesEnde) {
+        pruefeVerschiebbar();
+        String bemerkung = "Verschoben von " + zeitraum(beginn, ende) + " auf " + zeitraum(neuerBeginn, neuesEnde);
+        this.beginn = neuerBeginn;
+        this.ende = neuesEnde;
+        return new Statusereignis(this, Status.GEPLANT, Status.GEPLANT, bemerkung);
+    }
+
+    private static String zeitraum(Instant von, Instant bis) {
+        return ANZEIGE.format(von) + " bis " + ANZEIGE.format(bis);
     }
 
     public Long getId() { return id; }

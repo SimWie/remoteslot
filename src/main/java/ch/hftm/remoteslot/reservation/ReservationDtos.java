@@ -26,6 +26,19 @@ public final class ReservationDtos {
             @Size(max = 500) String bemerkung) {
     }
 
+    /** version = die Version, die der Client zuletzt gesehen hat (optimistisches Sperren). */
+    public record StatusAendernRequest(
+            @NotNull Status neuerStatus,
+            @NotNull Long version,
+            @Size(max = 500) String bemerkung) {
+    }
+
+    public record VerschiebenRequest(
+            @NotNull OffsetDateTime beginn,
+            @NotNull OffsetDateTime ende,
+            @NotNull Long version) {
+    }
+
     public record Response(Long id, Long anlageId, Long technikerId, OffsetDateTime beginn, OffsetDateTime ende,
                            Zweck zweck, Status status, String bemerkung, Long version) {
 

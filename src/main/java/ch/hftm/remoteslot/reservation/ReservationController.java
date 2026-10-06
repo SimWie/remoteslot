@@ -2,6 +2,8 @@ package ch.hftm.remoteslot.reservation;
 
 import ch.hftm.remoteslot.reservation.ReservationDtos.AnlegenRequest;
 import ch.hftm.remoteslot.reservation.ReservationDtos.Response;
+import ch.hftm.remoteslot.reservation.ReservationDtos.StatusAendernRequest;
+import ch.hftm.remoteslot.reservation.ReservationDtos.VerschiebenRequest;
 import ch.hftm.remoteslot.reservation.ReservationDtos.VerlaufseintragResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +34,17 @@ public class ReservationController {
     @GetMapping("/{id}")
     public Response laden(@PathVariable Long id) {
         return Response.von(service.laden(id));
+    }
+
+    @PostMapping("/{id}/status")
+    public Response statusAendern(@PathVariable Long id, @Valid @RequestBody StatusAendernRequest request) {
+        return Response.von(service.statusAendern(id, request.version(), request.neuerStatus(), request.bemerkung()));
+    }
+
+    @PutMapping("/{id}/zeitraum")
+    public Response verschieben(@PathVariable Long id, @Valid @RequestBody VerschiebenRequest request) {
+        return Response.von(service.verschieben(id, request.version(),
+                request.beginn().toInstant(), request.ende().toInstant()));
     }
 
     @GetMapping("/{id}/verlauf")
