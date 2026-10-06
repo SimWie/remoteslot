@@ -5,6 +5,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
@@ -22,4 +24,6 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
               AND r.beginn < :ende AND r.ende > :beginn
             """)
     boolean technikerBelegt(@Param("technikerId") Long technikerId, @Param("beginn") Instant beginn, @Param("ende") Instant ende);
+
+    List<Reservation> findByAnlageIdAndStatusInOrderByBeginnAscIdAsc(Long anlageId, Collection<Status> status);
 }

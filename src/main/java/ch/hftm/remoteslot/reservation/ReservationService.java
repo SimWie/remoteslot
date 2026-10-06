@@ -74,6 +74,31 @@ public class ReservationService {
         return reservation;
     }
 
+    static final String BEMERKUNG_AUSSERBETRIEBNAHME = "Anlage ausser Betrieb genommen";
+
+    /**
+     * T4, Teil der Operation "Anlage ausser Betrieb nehmen" (wird vom AnlageService in dessen Transaktion aufgerufen).
+     * Storniert alle GEPLANT-Reservationen der Anlage, auch ueberfaellige, und schreibt je einen Verlaufseintrag.
+     * Trifft sie auf eine AKTIV-Reservation, bricht sie mit 409 ab; die Transaktion wird dann vollstaendig
+     * zurueckgerollt, auch die bereits geschriebenen Stornierungen und das Deaktivieren der Anlage.
+     */
+    @Transactional
+    public int stornierenWegenAusserbetriebnahme(Anlage anlage) {
+        List<Reservation> offene = reservationen.findByAnlageIdAndStatusInOrderByBeginnAscIdAsc(
+                anlage.getId(), List.of(Status.GEPLANT, Status.AKTIV));
+        int storniert = 0;
+        for (Reservation r : offene) {
+            if (r.getStatus() == Status.AKTIV) {
+                throw new KonfliktException("Anlage " + anlage.getAnlagennummer() + " hat eine laufende Reservation ("
+                        + r.getId() + ") und kann nicht ausser Betrieb genommen werden.");
+            }
+            statusereignisse.save(r.statusWechseln(Status.STORNIERT, BEMERKUNG_AUSSERBETRIEBNAHME));
+            reservationen.flush(); // bewusst sofort schreiben: ein spaeterer Fehler muss diese Aenderung zuruecknehmen
+            storniert++;
+        }
+        return storniert;
+    }
+
     public Reservation laden(@NonNull Long id) {
         return reservationen.findById(id)
                 .orElseThrow(() -> new NichtGefundenException("Reservation " + id + " nicht gefunden."));
